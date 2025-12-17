@@ -51,10 +51,37 @@ const SnapMenuButton = GObject.registerClass(
             this._box.add_child(this._icon);
 
             this.add_child(this._box);
+
+            const monitorHeight = Main.layoutManager.primaryMonitor?.height ?? 1080;
+            this._scrollView = new St.ScrollView({
+                style_class: 'vfade',
+                overlay_scrollbars: true,
+                hscrollbar_policy: St.PolicyType.NEVER,
+                vscrollbar_policy: St.PolicyType.AUTOMATIC,
+                style: `max-height: ${Math.round(monitorHeight / 3)}px;`,
+            });
+
+            this._menuSection = new PopupMenu.PopupMenuSection();
+            this._menuSection.actor.set_style('padding-right: 16px;');
+            this._scrollView.set_child(this._menuSection.actor);
         }
 
         _populateMenu() {
             this.menu?.removeAll();
+            this._menuSection?.removeAll();
+
+            this.menu.box.add_child(this._scrollView);
+
+            for (const snap of this._snapsList) {
+                const snapMenuItem = new PopupMenu.PopupSubMenuMenuItem(snap?.name ?? 'Unknown');
+                this._menuSection.addMenuItem(snapMenuItem);
+
+                snapMenuItem.menu.addAction('Info', () => this._showSnapInfo(snap));
+                snapMenuItem.menu.addAction('Apps', () => this._showSnapApps(snap));
+                snapMenuItem.menu.addAction('Remove', () => this._removeSnapDialog(snap));
+            }
+
+            this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
             const toolsMenuItem = new PopupMenu.PopupSubMenuMenuItem("Tools");
             this.menu.addMenuItem(toolsMenuItem);
@@ -62,18 +89,6 @@ const SnapMenuButton = GObject.registerClass(
             toolsMenuItem.menu.addAction("Refresh snaps", () => this._refreshSnaps());
             toolsMenuItem.menu.addAction("Recent changes", () => this._getChanges());
             toolsMenuItem.menu.addAction("Install snap...", () => this._installSnapDialog());
-
-            this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-
-            for (const snap of this._snapsList) {
-                const snapMenuItem = new PopupMenu.PopupSubMenuMenuItem(snap?.name ?? 'Unknown');
-
-                snapMenuItem.menu.addAction('Info', () => this._showSnapInfo(snap));
-                snapMenuItem.menu.addAction('Apps', () => this._showSnapApps(snap));
-                snapMenuItem.menu.addAction('Remove', () => this._removeSnapDialog(snap));
-
-                this.menu.addMenuItem(snapMenuItem);
-            }
         }
 
         _updateMenu() {
@@ -129,6 +144,8 @@ const SnapMenuButton = GObject.registerClass(
         }
 
         _showSnapInfo(snap) {
+            this.menu?.close();
+
             const version = snap?.version ?? 'N/A';
             const revision = snap?.revision ?? 'N/A';
             const channel = snap?.channel ?? 'N/A';
@@ -141,6 +158,8 @@ const SnapMenuButton = GObject.registerClass(
         }
 
         _showSnapApps(snap) {
+            this.menu?.close();
+
             const apps = snap?.get_apps() ?? [];
             const appNames = apps?.map(app => app?.name);
 
