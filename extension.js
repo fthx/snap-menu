@@ -23,6 +23,8 @@ const SnapMenuButton = GObject.registerClass(
 
             this._makeButtonBox();
             this._updateMenu();
+
+            this.connectObject('button-press-event', () => this._updateMenu(), this);
         }
 
         _makeButtonBox() {
