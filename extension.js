@@ -3,11 +3,14 @@
 //    @fthx 2025
 
 
+import Clutter from 'gi://Clutter';
 import GObject from 'gi://GObject';
 import Snapd from 'gi://Snapd';
 import St from 'gi://St';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import * as MessageTray from 'resource:///org/gnome/shell/ui//messageTray.js';
+import * as ModalDialog from 'resource:///org/gnome/shell/ui/modalDialog.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 
@@ -21,7 +24,7 @@ const SnapMenuButton = GObject.registerClass(
 
             this._snapdClient = new Snapd.Client();
             if (!this._snapdClient) {
-                Main.notify('Snap menu extension :: Init', 'Error: no snapd client found');
+                this._showNotification('Snap menu extension :: Init', 'Error: no snapd client found');
                 return;
             }
 
@@ -52,13 +55,18 @@ const SnapMenuButton = GObject.registerClass(
 
             toolsMenuItem.menu.addAction("Refresh snaps", () => this._refreshSnaps());
             toolsMenuItem.menu.addAction("Recent changes", () => this._getChanges());
+            toolsMenuItem.menu.addAction("Install snap...", () => this._installSnapDialog());
 
-            const snapsMenuItem = new PopupMenu.PopupSubMenuMenuItem("Installed snaps");
-            this.menu.addMenuItem(snapsMenuItem);
+            this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
             for (const snap of this._snapsList) {
-                const snapItem = new PopupMenu.PopupMenuItem(snap?.name);
-                snapsMenuItem.menu.addMenuItem(snapItem);
+                const snapMenuItem = new PopupMenu.PopupSubMenuMenuItem(snap?.name ?? 'Unknown');
+
+                snapMenuItem.menu.addAction('Info', () => this._showSnapInfo(snap));
+                snapMenuItem.menu.addAction('Apps', () => this._showSnapApps(snap));
+                snapMenuItem.menu.addAction('Remove', () => this._removeSnapDialog(snap));
+
+                this.menu.addMenuItem(snapMenuItem);
             }
         }
 
@@ -82,13 +90,13 @@ const SnapMenuButton = GObject.registerClass(
                 null,
                 (client, result) => {
                     try {
-                        const refreshedSnaps = client.refresh_all_finish(result)?.join(' ');
-                        Main.notify('Snap menu extension :: Refresh', `Refreshed snaps: ${refreshedSnaps}.`);
+                        const refreshedSnaps = client.refresh_all_finish(result)?.join(' — ');
+                        this._showNotification('Snap menu extension :: Refresh', `Refreshed snaps: ${refreshedSnaps}.`);
                     } catch (e) {
                         if (e.message && e.message.includes('Unexpected result type')) {
-                            Main.notify('Snap menu extension: refresh', 'No refresh found.');
+                            this._showNotification('Snap menu extension :: Refresh', 'No refresh found.');
                         } else
-                            Main.notify('Snap menu extension: refresh', 'Error: ' + e.message);
+                            this._showNotification('Snap menu extension :: Refresh', 'Error: ' + e.message);
                     }
                 }
             );
@@ -103,15 +111,161 @@ const SnapMenuButton = GObject.registerClass(
                     try {
                         const changesList = client.get_changes_finish(result);
                         const summaries = changesList.map(change => change.get_summary());
-                        Main.notify('Snap menu extension :: Changes', summaries.join('\n'));
+                        this._showNotification('Snap menu extension :: Changes', summaries.join(' — '));
                     } catch (e) {
                         if (e.message && e.message.includes('Unexpected result type')) {
-                            Main.notify('Snap menu extension: changes', 'No changes.');
+                            this._showNotification('Snap menu extension :: Changes', 'No changes.');
                         } else
-                            Main.notify('Snap menu extension: changes', 'Error: ' + e.message);
+                            this._showNotification('Snap menu extension :: Changes', 'Error: ' + e.message);
                     }
                 }
             );
+        }
+
+        _showSnapInfo(snap) {
+            const version = snap?.version ?? 'N/A';
+            const revision = snap?.revision ?? 'N/A';
+            const channel = snap?.channel ?? 'N/A';
+            const summary = snap?.summary ?? 'N/A';
+
+            this._showNotification(
+                `Snap menu extension :: Info`,
+                `${snap?.title} ${version} (${revision} - ${channel}) — ${summary}`
+            )
+        }
+
+        _showSnapApps(snap) {
+            const apps = snap?.get_apps() ?? [];
+            const appNames = apps?.map(app => app?.name);
+
+            this._showNotification(
+                'Snap menu extension :: Apps',
+                `Apps from ${snap?.title}: ${appNames.join(' — ')}.`
+            )
+        }
+
+        _installSnapDialog() {
+            const dialog = new ModalDialog.ModalDialog();
+
+            const title = new St.Label({
+                text: 'Snap menu extension :: Install snap',
+                style: 'font-weight: bold;',
+                x_align: Clutter.ActorAlign.CENTER,
+            });
+            dialog.contentLayout.add_child(title);
+
+            const entry = new St.Entry({
+                can_focus: true,
+                hint_text: 'Enter snap name',
+            });
+            dialog.contentLayout.add_child(entry);
+
+            dialog.setButtons([
+                {
+                    label: 'Cancel',
+                    action: () => dialog.close(),
+                    key: Clutter.KEY_Escape,
+                },
+                {
+                    label: 'Install',
+                    action: () => {
+                        const snapName = entry.text.trim();
+                        dialog.close();
+                        this._installSnap(snapName);
+                    },
+                },
+            ]);
+
+            dialog.open();
+        }
+
+        _installSnap(snapName) {
+            this._snapdClient.install2_async(
+                Snapd.InstallFlags.NONE,
+                snapName,
+                null,
+                null,
+                null,
+                null,
+                (client, result) => {
+                    try {
+                        client.install2_finish(result);
+
+                        this._showNotification(
+                            'Snap menu extension :: Install snap',
+                            `Snap ${snapName} installed.`
+                        )
+                    } catch (e) {
+                        this._showNotification('Error: ', e.message);
+                    }
+                }
+            );
+        }
+
+        _removeSnapDialog(snap) {
+            const dialog = new ModalDialog.ModalDialog();
+
+            const title = new St.Label({
+                text: 'Snap menu extension :: Remove snap',
+                style: 'font-weight: bold;',
+                x_align: Clutter.ActorAlign.CENTER,
+            });
+            dialog.contentLayout.add_child(title);
+
+            const body = new St.Label({
+                text: `Warning: really remove snap ${snap?.name} ?`,
+            });
+            dialog.contentLayout.add_child(body);
+
+            dialog.setButtons([
+                {
+                    label: 'Cancel',
+                    action: () => dialog.close(),
+                    key: Clutter.KEY_Escape,
+                },
+                {
+                    label: 'Remove',
+                    action: () => {
+                        dialog.close();
+                        this._removeSnap(snap);
+                    },
+                },
+            ]);
+
+            dialog.open();
+        }
+
+        _removeSnap(snap) {
+            this._snapdClient.remove_async(
+                snap?.name,
+                null,
+                null,
+                (client, result) => {
+                    try {
+                        client.remove_finish(result);
+
+                        this._showNotification(
+                            'Snap menu extension :: Remove snap',
+                            `Snap ${snap?.name} removed.`
+                        )
+                    } catch (e) {
+                        this._showNotification('Error: ', e.message);
+                    }
+                }
+            );
+        }
+
+        _showNotification(title, body) {
+            const source = MessageTray.getSystemSource();
+
+            const notification = new MessageTray.Notification({
+                source: source,
+                title: title,
+                body: body,
+                isTransient: false,
+            });
+            notification.urgency = MessageTray.Urgency.CRITICAL;
+            source.addNotification(notification);
         }
 
         destroy() {
