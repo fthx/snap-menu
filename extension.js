@@ -20,11 +20,12 @@ const SnapMenuButton = GObject.registerClass(
             super._init(0.5);
 
             this._snapdClient = new Snapd.Client();
+            this._snapdNoticesMonitor = new Snapd.NoticesMonitor();
 
             this._makeButtonBox();
             this._updateMenu();
 
-            this.connectObject('button-press-event', () => this._updateMenu(), this);
+            this._snapdNoticesMonitor?.connectObject('notice-event', () => this._updateMenu(), this);
         }
 
         _makeButtonBox() {
@@ -55,7 +56,7 @@ const SnapMenuButton = GObject.registerClass(
         }
 
         _updateMenu() {
-            this._snapdClient.get_snaps_async(
+            this._snapdClient?.get_snaps_async(
                 Snapd.GetAppsFlags.NONE,
                 null,
                 null,
@@ -69,7 +70,7 @@ const SnapMenuButton = GObject.registerClass(
         }
 
         _refreshSnaps() {
-            this._snapdClient.refresh_all_async(
+            this._snapdClient?.refresh_all_async(
                 null,
                 null,
                 (client, result) => {
@@ -87,7 +88,7 @@ const SnapMenuButton = GObject.registerClass(
         }
 
         _getChanges() {
-            this._snapdClient.get_changes_async(
+            this._snapdClient?.get_changes_async(
                 Snapd.ChangeFilter.ALL,
                 null,
                 null,
@@ -107,6 +108,11 @@ const SnapMenuButton = GObject.registerClass(
         }
 
         destroy() {
+            this._snapdNoticesMonitor.disconnectObject(this);
+
+            this._snapdNoticesMonitor = null;
+            this._snapdClient = null;
+
             this.menu?.removeAll();
 
             super.destroy();
