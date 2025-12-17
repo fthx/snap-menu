@@ -20,6 +20,11 @@ const SnapMenuButton = GObject.registerClass(
             super._init(0.5);
 
             this._snapdClient = new Snapd.Client();
+            if (!this._snapdClient) {
+                Main.notify('Snap menu extension :: Init', 'Error: no snapd client found');
+                return;
+            }
+
             this._snapdNoticesMonitor = Snapd.NoticesMonitor.new_with_client(this._snapdClient);
             this._snapdNoticesMonitor?.start();
 
@@ -77,7 +82,7 @@ const SnapMenuButton = GObject.registerClass(
                 (client, result) => {
                     try {
                         const refreshedSnaps = client.refresh_all_finish(result)?.join(' ');
-                        Main.notify('Snap menu extension: refresh', `Refreshed snaps: ${refreshedSnaps}.`);
+                        Main.notify('Snap menu extension :: Refresh', `Refreshed snaps: ${refreshedSnaps}.`);
                     } catch (e) {
                         if (e.message && e.message.includes('Unexpected result type')) {
                             Main.notify('Snap menu extension: refresh', 'No refresh found.');
@@ -97,7 +102,7 @@ const SnapMenuButton = GObject.registerClass(
                     try {
                         const changesList = client.get_changes_finish(result);
                         const summaries = changesList.map(change => change.get_summary());
-                        Main.notify('Snap menu extension: changes', summaries.join('\n'));
+                        Main.notify('Snap menu extension :: Changes', summaries.join('\n'));
                     } catch (e) {
                         if (e.message && e.message.includes('Unexpected result type')) {
                             Main.notify('Snap menu extension: changes', 'No changes.');
@@ -109,8 +114,8 @@ const SnapMenuButton = GObject.registerClass(
         }
 
         destroy() {
-            this._snapdNoticesMonitor.disconnectObject(this);
-            this._snapdNoticesMonitor.stop();
+            this._snapdNoticesMonitor?.disconnectObject(this);
+            this._snapdNoticesMonitor?.stop();
 
             this._snapdNoticesMonitor = null;
             this._snapdClient = null;
