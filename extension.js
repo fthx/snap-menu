@@ -17,7 +17,7 @@ const SNAP_ICON_NAME = 'snap-symbolic';
 const SnapMenuButton = GObject.registerClass(
     class SnapMenuButton extends PanelMenu.Button {
         _init() {
-            super._init(0.0);
+            super._init(0.5);
 
             this._snapdClient = new Snapd.Client();
 
