@@ -1,13 +1,16 @@
 //    Snap Menu
 //    GNOME Shell extension
 //    @fthx 2025
+//    snap-symbolic icon copied from Yaru icons
 
 
 import Clutter from 'gi://Clutter';
+import Gio from 'gi://Gio';
 import GObject from 'gi://GObject';
 import Snapd from 'gi://Snapd';
 import St from 'gi://St';
 
+import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as MessageTray from 'resource:///org/gnome/shell/ui//messageTray.js';
 import * as ModalDialog from 'resource:///org/gnome/shell/ui/modalDialog.js';
@@ -15,12 +18,12 @@ import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 
 
-const SNAP_ICON_NAME = 'snap-symbolic';
-
 const SnapMenuButton = GObject.registerClass(
     class SnapMenuButton extends PanelMenu.Button {
-        _init() {
+        _init(path) {
             super._init(0.5);
+
+            this._path = path;
 
             this._snapdClient = new Snapd.Client();
             if (!this._snapdClient) {
@@ -41,7 +44,10 @@ const SnapMenuButton = GObject.registerClass(
         _makeButtonBox() {
             this._box = new St.BoxLayout();
 
-            this._icon = new St.Icon({ icon_name: SNAP_ICON_NAME, style_class: 'system-status-icon' });
+            const iconPath = `${this._path}/snap-symbolic.svg`;
+            const snapGIcon = Gio.icon_new_for_string(iconPath);
+
+            this._icon = new St.Icon({ gicon: snapGIcon, style_class: 'system-status-icon' });
             this._box.add_child(this._icon);
 
             this.add_child(this._box);
@@ -282,9 +288,13 @@ const SnapMenuButton = GObject.registerClass(
         }
     });
 
-export default class SnapMenuExtension {
+export default class SnapMenuExtension extends Extension {
+    constructor(metadata) {
+        super(metadata);
+    }
+
     enable() {
-        this._snapMenuButton = new SnapMenuButton();
+        this._snapMenuButton = new SnapMenuButton(this.path);
 
         if (!Main.panel.statusArea['Snap Menu Button'])
             Main.panel.addToStatusArea('Snap Menu Button', this._snapMenuButton);
