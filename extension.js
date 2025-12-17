@@ -25,7 +25,8 @@ const SnapMenuButton = GObject.registerClass(
                 return;
             }
 
-            this._snapdNoticesMonitor = Snapd.NoticesMonitor.new_with_client(this._snapdClient);
+            this._snapdClientForMonitoring = new Snapd.Client();
+            this._snapdNoticesMonitor = Snapd.NoticesMonitor.new_with_client(this._snapdClientForMonitoring);
             this._snapdNoticesMonitor?.start();
 
             this._makeButtonBox();
@@ -118,6 +119,7 @@ const SnapMenuButton = GObject.registerClass(
             this._snapdNoticesMonitor?.stop();
 
             this._snapdNoticesMonitor = null;
+            this._snapdClientForMonitoring = null;
             this._snapdClient = null;
 
             this.menu?.removeAll();
