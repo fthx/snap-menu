@@ -7,6 +7,7 @@
 import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
 import GObject from 'gi://GObject';
+import Pango from 'gi://Pango';
 import Snapd from 'gi://Snapd';
 import St from 'gi://St';
 
@@ -35,13 +36,14 @@ const SnapMenuButton = GObject.registerClass(
             this._snapdNoticesMonitor = Snapd.NoticesMonitor.new_with_client(this._snapdClientForMonitoring);
             this._snapdNoticesMonitor?.start();
 
-            this._makeButtonBox();
-            this._updateMenu();
+            this._makeMenuButtonBox();
+            this._updateSnapsMenu();
 
-            this._snapdNoticesMonitor?.connectObject('notice-event', () => this._updateMenu(), this);
+            this._menuIsUpdating = false;
+            this._snapdNoticesMonitor?.connectObject('notice-event', () => this._updateSnapsMenu(), this);
         }
 
-        _makeButtonBox() {
+        _makeMenuButtonBox() {
             this._box = new St.BoxLayout();
 
             const iconPath = `${this._path}/snap-symbolic.svg`;
@@ -61,37 +63,56 @@ const SnapMenuButton = GObject.registerClass(
                 style: `max-height: ${Math.round(monitorHeight / 3)}px;`,
             });
 
-            this._menuSection = new PopupMenu.PopupMenuSection();
-            this._menuSection.actor.set_style('padding-right: 16px;');
-            this._scrollView.set_child(this._menuSection.actor);
+            // Tools
+            this._menuSectionTools = new PopupMenu.PopupMenuSection();
+            this._menuSectionTools.actor.set_style('padding-right: 16px;');
+
+            this.menu.addMenuItem(this._menuSectionTools);
+            this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+
+            const toolsMenuItem = new PopupMenu.PopupSubMenuMenuItem("Tools");
+            toolsMenuItem.menu.addAction("Refresh snaps", () => this._refreshSnaps());
+            toolsMenuItem.menu.addAction("Recent changes", () => this._getChanges());
+            toolsMenuItem.menu.addAction("Install snap...", () => this._installSnapDialog());
+
+            this._menuSectionTools.addMenuItem(toolsMenuItem);
+
+            // Snaps
+            this._menuSectionSnaps = new PopupMenu.PopupMenuSection();
+            this._menuSectionSnaps.actor.set_style('padding-right: 16px;');
+
+            this._scrollView.set_child(this._menuSectionSnaps.actor);
+            this.menu.box.add_child(this._scrollView);
+            this._menuSectionSnaps._getTopMenu = () => this.menu;
         }
 
-        _populateMenu() {
-            this.menu?.removeAll();
-            this._menuSection?.removeAll();
-
-            this.menu.box.add_child(this._scrollView);
+        _populateSnapsMenu() {
+            this._menuSectionSnaps?.removeAll();
+            const allSnapItems = [];
 
             for (const snap of this._snapsList) {
                 const snapMenuItem = new PopupMenu.PopupSubMenuMenuItem(snap?.name ?? 'Unknown');
-                this._menuSection.addMenuItem(snapMenuItem);
+                this._menuSectionSnaps.addMenuItem(snapMenuItem);
+                allSnapItems.push(snapMenuItem);
+
+                snapMenuItem.connectObject('notify::active', () => {
+                    if (snapMenuItem.active)
+                        allSnapItems.forEach(item => {
+                            if (item !== snapMenuItem && item.active)
+                                item.setSubmenuShown(false);
+                        });
+                }, this);
 
                 snapMenuItem.menu.addAction('Info', () => this._showSnapInfo(snap));
                 snapMenuItem.menu.addAction('Apps', () => this._showSnapApps(snap));
                 snapMenuItem.menu.addAction('Remove', () => this._removeSnapDialog(snap));
             }
-
-            this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-
-            const toolsMenuItem = new PopupMenu.PopupSubMenuMenuItem("Tools");
-            this.menu.addMenuItem(toolsMenuItem);
-
-            toolsMenuItem.menu.addAction("Refresh snaps", () => this._refreshSnaps());
-            toolsMenuItem.menu.addAction("Recent changes", () => this._getChanges());
-            toolsMenuItem.menu.addAction("Install snap...", () => this._installSnapDialog());
         }
 
-        _updateMenu() {
+        _updateSnapsMenu() {
+            if (this._menuIsUpdating)
+                return;
+
             this._snapdClient?.get_snaps_async(
                 Snapd.GetAppsFlags.NONE,
                 null,
@@ -100,7 +121,9 @@ const SnapMenuButton = GObject.registerClass(
                     this._snapsList = client.get_snaps_finish(result);
                     this._snapsList.sort((a, b) => a?.name > b?.name);
 
-                    this._populateMenu();
+                    this._populateSnapsMenu();
+
+                    this._menuIsUpdating = false;
                 }
             );
         }
@@ -143,17 +166,49 @@ const SnapMenuButton = GObject.registerClass(
             );
         }
 
+        _getSnapConfinementName(snapConfinement) {
+            if (!snapConfinement)
+                return;
+
+            switch (snapConfinement) {
+                case 0:
+                    return 'unknown';
+                    break;
+                case 1:
+                    return 'strict';
+                    break;
+                case 2:
+                    return 'devmode (unconfined)';
+                    break;
+                case 3:
+                    return 'classic';
+                    break;
+            }
+        }
+
         _showSnapInfo(snap) {
             this.menu?.close();
 
+            const title = snap?.title
+            const summary = snap?.summary ?? 'N/A';
             const version = snap?.version ?? 'N/A';
             const revision = snap?.revision ?? 'N/A';
             const channel = snap?.channel ?? 'N/A';
-            const summary = snap?.summary ?? 'N/A';
+            const confinement = this._getSnapConfinementName(snap?.confinement) ?? 'N/A';
+            //const channels = snap?.channels?.map(channel => channel.name).join(' ') ?? 'N/A';
 
-            this._showNotification(
-                `Snap menu extension :: Info`,
-                `${snap?.title} ${version} (${revision} - ${channel}) — ${summary}`
+            this._showTextDialog(
+                'Snap menu extension :: Info',
+                [
+                    `<b>Name</b>\u2003${title}`,
+                    `<b>Summary</b>\u2003${summary}`,
+                    '',
+                    `<b>Version</b>\u2003${version} (${revision})`,
+                    `<b>Channel</b>\u2003${channel}`,
+                    `<b>Confinement</b>\u2003${confinement}`,
+                    '',
+                    //`<b>Channels</b>\u2003${channels}`,
+                ]
             )
         }
 
@@ -163,18 +218,30 @@ const SnapMenuButton = GObject.registerClass(
             const apps = snap?.get_apps() ?? [];
             const appNames = apps?.map(app => app?.name);
 
-            this._showNotification(
+            this._showTextDialog(
                 'Snap menu extension :: Apps',
-                `Apps from ${snap?.title}: ${appNames.join(' — ')}.`
+                [
+                    `<b>Apps from ${snap?.title}</b>`,
+                    appNames.join('\n'),
+                ]
             )
         }
 
         _installSnapDialog() {
+            const installSnap = () => {
+                const snapName = entry?.text?.trim();
+                if (!snapName)
+                    return;
+
+                dialog.close();
+                this._installSnap(snapName);
+            };
+
             const dialog = new ModalDialog.ModalDialog();
 
             const title = new St.Label({
                 text: 'Snap menu extension :: Install snap',
-                style: 'font-weight: bold;',
+                style: 'font-size: 1.5em; font-weight: bold;',
                 x_align: Clutter.ActorAlign.CENTER,
             });
             dialog.contentLayout.add_child(title);
@@ -184,6 +251,9 @@ const SnapMenuButton = GObject.registerClass(
                 hint_text: 'Enter snap name',
             });
             dialog.contentLayout.add_child(entry);
+            dialog.setInitialKeyFocus(entry);
+
+            entry?.clutter_text.connectObject('activate', installSnap, this);
 
             dialog.setButtons([
                 {
@@ -193,11 +263,7 @@ const SnapMenuButton = GObject.registerClass(
                 },
                 {
                     label: 'Install',
-                    action: () => {
-                        const snapName = entry.text.trim();
-                        dialog.close();
-                        this._installSnap(snapName);
-                    },
+                    action: installSnap,
                 },
             ]);
 
@@ -232,14 +298,15 @@ const SnapMenuButton = GObject.registerClass(
 
             const title = new St.Label({
                 text: 'Snap menu extension :: Remove snap',
-                style: 'font-weight: bold;',
+                style: 'font-size: 1.5em; font-weight: bold;',
                 x_align: Clutter.ActorAlign.CENTER,
             });
             dialog.contentLayout.add_child(title);
 
             const body = new St.Label({
-                text: `Warning: really remove snap ${snap?.name} ?`,
+                text: `<b>WARNING</b>\u2003 Really remove snap <b>${snap?.name}</b> ?`,
             });
+            body.clutter_text.use_markup = true;
             dialog.contentLayout.add_child(body);
 
             dialog.setButtons([
@@ -293,6 +360,45 @@ const SnapMenuButton = GObject.registerClass(
             source.addNotification(notification);
         }
 
+        _showTextDialog(title, body) {
+            const dialog = new ModalDialog.ModalDialog();
+
+            const titleLabel = new St.Label({
+                text: title,
+                style: 'font-size: 1.5em; font-weight: bold;',
+                x_align: Clutter.ActorAlign.CENTER,
+            });
+
+            dialog.contentLayout.add_child(titleLabel);
+
+            let bodyBox = new St.BoxLayout({
+                vertical: true,
+            });
+            dialog.contentLayout.add_child(bodyBox);
+
+            for (const text of body) {
+                const label = new St.Label({
+                    text: text,
+                });
+                label.clutter_text.use_markup = true;
+                label.clutter_text.line_wrap = true;
+                label.clutter_text.line_wrap_mode = Pango.WrapMode.WORD;
+                label.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
+
+                bodyBox.add_child(label);
+            }
+
+            dialog.setButtons([
+                {
+                    label: 'Close',
+                    action: () => dialog.close(),
+                    key: Clutter.KEY_Escape,
+                },
+            ]);
+
+            dialog.open();
+        }
+
         destroy() {
             this._snapdNoticesMonitor?.disconnectObject(this);
             this._snapdNoticesMonitor?.stop();
@@ -301,6 +407,8 @@ const SnapMenuButton = GObject.registerClass(
             this._snapdClientForMonitoring = null;
             this._snapdClient = null;
 
+            this._menuSectionTools?.removeAll();
+            this._menuSectionSnaps?.removeAll();
             this.menu?.removeAll();
 
             super.destroy();
