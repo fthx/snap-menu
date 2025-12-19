@@ -134,8 +134,14 @@ const SnapMenuButton = GObject.registerClass(
                 null,
                 (client, result) => {
                     try {
-                        const refreshedSnaps = client.refresh_all_finish(result)?.join(' — ');
-                        this._showNotification('Snap menu extension :: Refresh', `Refreshed snaps: ${refreshedSnaps}.`);
+                        const refreshedSnaps = client.refresh_all_finish(result);
+                        this._showTextDialog(
+                            'Snap menu extension :: Refresh',
+                            [
+                                'Refreshed snaps',
+                                `${refreshedSnaps?.join('\n')}`,
+                            ]
+                        );
                     } catch (e) {
                         if (e.message && e.message.includes('Unexpected result type')) {
                             this._showNotification('Snap menu extension :: Refresh', 'No refresh found.');
@@ -155,7 +161,10 @@ const SnapMenuButton = GObject.registerClass(
                     try {
                         const changesList = client.get_changes_finish(result);
                         const summaries = changesList.map(change => change.get_summary());
-                        this._showNotification('Snap menu extension :: Changes', summaries.join(' — '));
+                        this._showTextDialog(
+                            'Snap menu extension :: Changes',
+                            [summaries?.join('\n'),]
+                        );
                     } catch (e) {
                         if (e.message && e.message.includes('Unexpected result type')) {
                             this._showNotification('Snap menu extension :: Changes', 'No changes.');
