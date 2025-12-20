@@ -161,7 +161,7 @@ const SnapMenuButton = GObject.registerClass(
                         const changesList = client.get_changes_finish(result);
                         changesList.sort((a, b) => b?.ready_time?.compare(a?.ready_time));
                         const changesLogs = changesList.map(change =>
-                            `<b>${change.ready_time.format('%c')}</b>\u2003${change.summary}`);
+                            `<b>${change?.ready_time.format('%c')}</b>\u2003${change?.summary}`);
                         this._showTextDialog(
                             'Snap menu extension :: Changes',
                             [changesLogs?.join('\n'),]
@@ -305,7 +305,7 @@ const SnapMenuButton = GObject.registerClass(
             dialog.contentLayout.add_child(title);
 
             const body = new St.Label({
-                text: `< b > WARNING</b >\u2003 Really remove snap < b > ${snap?.name}</b > ? `,
+                text: `<b>WARNING</b>\u2003 Really remove snap <b>${snap?.name}</b> ? `,
             });
             body.clutter_text.use_markup = true;
             dialog.contentLayout.add_child(body);
