@@ -103,8 +103,7 @@ const SnapMenuButton = GObject.registerClass(
                         });
                 }, this);
 
-                snapMenuItem.menu.addAction('Info', () => this._showSnapInfo(snap));
-                snapMenuItem.menu.addAction('Apps', () => this._showSnapApps(snap));
+                snapMenuItem.menu.addAction('Details', () => this._showSnapDetails(snap));
                 snapMenuItem.menu.addAction('Remove', () => this._removeSnapDialog(snap));
             }
         }
@@ -195,16 +194,31 @@ const SnapMenuButton = GObject.registerClass(
             }
         }
 
-        _showSnapInfo(snap) {
+        /*_getSnapChannels(snap) {
+            this._snapdClient?.find_async(
+                Snapd.FindFlags.SCOPE_WIDE,
+                snap?.name,
+                null,
+                (client, result) => {
+                    const storeSnap = client.find_finish(result);
+                    log(storeSnap);
+                    return storeSnap[0][0]?.channels;
+                }
+            );
+        }*/
+
+        _showSnapDetails(snap) {
             this.menu?.close();
 
             const title = snap?.title
             const summary = snap?.summary ?? 'N/A';
             const version = snap?.version ?? 'N/A';
             const revision = snap?.revision ?? 'N/A';
+            const date = snap?.install_date.format() ?? 'N/A';
             const channel = snap?.channel ?? 'N/A';
             const confinement = this._getSnapConfinementName(snap?.confinement) ?? 'N/A';
-            //const channels = snap?.channels?.map(channel => channel.name).join(' ') ?? 'N/A';
+            const channels = snap?.get_channels()?.map(channel => channel?.name).join(' ') ?? 'N/A';
+            const apps = snap?.get_apps()?.map(app => app?.name).join(' ') ?? 'N/A';
 
             this._showTextDialog(
                 'Snap menu extension :: Info',
@@ -213,25 +227,14 @@ const SnapMenuButton = GObject.registerClass(
                     `<b>Summary</b>\u2003${summary}`,
                     '',
                     `<b>Version</b>\u2003${version} (${revision})`,
+                    `<b>Install date</b>\u2003${date})`,
+                    '',
                     `<b>Channel</b>\u2003${channel}`,
                     `<b>Confinement</b>\u2003${confinement}`,
                     '',
-                    //`<b>Channels</b>\u2003${channels}`,
-                ]
-            )
-        }
-
-        _showSnapApps(snap) {
-            this.menu?.close();
-
-            const apps = snap?.get_apps() ?? [];
-            const appNames = apps?.map(app => app?.name);
-
-            this._showTextDialog(
-                'Snap menu extension :: Apps',
-                [
-                    `<b>Apps from ${snap?.title}</b>`,
-                    appNames.join('\n'),
+                    `<b>Channels</b>\u2003${channels}`,
+                    '',
+                    `<b>Apps</b>\u2003${apps}`,
                 ]
             )
         }
@@ -280,7 +283,7 @@ const SnapMenuButton = GObject.registerClass(
         }
 
         _installSnap(snapName) {
-            this._snapdClient.install2_async(
+            this._snapdClient?.install2_async(
                 Snapd.InstallFlags.NONE,
                 snapName,
                 null,
@@ -337,7 +340,7 @@ const SnapMenuButton = GObject.registerClass(
         }
 
         _removeSnap(snap) {
-            this._snapdClient.remove_async(
+            this._snapdClient?.remove_async(
                 snap?.name,
                 null,
                 null,
@@ -365,7 +368,7 @@ const SnapMenuButton = GObject.registerClass(
                 body: body,
                 isTransient: false,
             });
-            notification.urgency = MessageTray.Urgency.CRITICAL;
+
             source.addNotification(notification);
         }
 
