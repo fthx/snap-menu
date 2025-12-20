@@ -194,19 +194,6 @@ const SnapMenuButton = GObject.registerClass(
             }
         }
 
-        /*_getSnapChannels(snap) {
-            this._snapdClient?.find_async(
-                Snapd.FindFlags.SCOPE_WIDE,
-                snap?.name,
-                null,
-                (client, result) => {
-                    const storeSnap = client.find_finish(result);
-                    log(storeSnap);
-                    return storeSnap[0][0]?.channels;
-                }
-            );
-        }*/
-
         _showSnapDetails(snap) {
             this.menu?.close();
 
