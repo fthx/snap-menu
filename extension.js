@@ -137,7 +137,7 @@ const SnapMenuButton = GObject.registerClass(
                         this._showTextDialog(
                             'Snap menu extension :: Refresh',
                             [
-                                'Refreshed snaps',
+                                '<b>Refreshed snaps</b>',
                                 `${refreshedSnaps?.join('\n')}`,
                             ]
                         );
@@ -159,10 +159,12 @@ const SnapMenuButton = GObject.registerClass(
                 (client, result) => {
                     try {
                         const changesList = client.get_changes_finish(result);
-                        const summaries = changesList.map(change => change.get_summary());
+                        changesList.sort((a, b) => b?.ready_time?.compare(a?.ready_time));
+                        const changesLogs = changesList.map(change =>
+                            `<b>${change.ready_time.format('%c')}</b>\u2003${change.summary}`);
                         this._showTextDialog(
                             'Snap menu extension :: Changes',
-                            [summaries?.join('\n'),]
+                            [changesLogs?.join('\n'),]
                         );
                     } catch (e) {
                         if (e.message && e.message.includes('Unexpected result type')) {
@@ -204,8 +206,8 @@ const SnapMenuButton = GObject.registerClass(
             const date = snap?.install_date.format('%c') ?? 'N/A';
             const channel = snap?.channel ?? 'N/A';
             const confinement = this._getSnapConfinementName(snap?.confinement) ?? 'N/A';
-            const channels = snap?.get_channels()?.map(channel => channel?.name).join(' ') ?? 'N/A';
-            const apps = snap?.get_apps()?.map(app => app?.name).join(' ') ?? 'N/A';
+            const channels = snap?.get_channels()?.map(channel => channel?.name).join('\u2003') ?? 'N/A';
+            const apps = snap?.get_apps()?.map(app => app?.name).join('\u2003') ?? 'N/A';
 
             this._showTextDialog(
                 'Snap menu extension :: Info',
@@ -213,7 +215,7 @@ const SnapMenuButton = GObject.registerClass(
                     `<b>Name</b>\u2003${title}`,
                     `<b>Summary</b>\u2003${summary}`,
                     '',
-                    `<b>Version</b>\u2003${version} (${revision})`,
+                    `<b>Version</b>\u2003${version}\u2003(${revision})`,
                     `<b>Install date</b>\u2003${date}`,
                     '',
                     `<b>Channel</b>\u2003${channel}`,
@@ -303,7 +305,7 @@ const SnapMenuButton = GObject.registerClass(
             dialog.contentLayout.add_child(title);
 
             const body = new St.Label({
-                text: `<b>WARNING</b>\u2003 Really remove snap <b>${snap?.name}</b> ?`,
+                text: `< b > WARNING</b >\u2003 Really remove snap < b > ${snap?.name}</b > ? `,
             });
             body.clutter_text.use_markup = true;
             dialog.contentLayout.add_child(body);
