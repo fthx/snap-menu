@@ -214,7 +214,7 @@ const SnapMenuButton = GObject.registerClass(
             const summary = snap?.summary ?? 'N/A';
             const version = snap?.version ?? 'N/A';
             const revision = snap?.revision ?? 'N/A';
-            const date = snap?.install_date.format() ?? 'N/A';
+            const date = snap?.install_date.format('%c') ?? 'N/A';
             const channel = snap?.channel ?? 'N/A';
             const confinement = this._getSnapConfinementName(snap?.confinement) ?? 'N/A';
             const channels = snap?.get_channels()?.map(channel => channel?.name).join(' ') ?? 'N/A';
@@ -227,7 +227,7 @@ const SnapMenuButton = GObject.registerClass(
                     `<b>Summary</b>\u2003${summary}`,
                     '',
                     `<b>Version</b>\u2003${version} (${revision})`,
-                    `<b>Install date</b>\u2003${date})`,
+                    `<b>Install date</b>\u2003${date}`,
                     '',
                     `<b>Channel</b>\u2003${channel}`,
                     `<b>Confinement</b>\u2003${confinement}`,
