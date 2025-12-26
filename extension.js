@@ -134,6 +134,8 @@ const SnapMenuButton = GObject.registerClass(
                 (client, result) => {
                     try {
                         const refreshedSnaps = client.refresh_all_finish(result);
+
+                        this._showNotification('Snap menu extension :: Refresh', 'Refreshing snaps...');
                         this._showTextDialog(
                             'Snap menu extension :: Refresh',
                             [
@@ -206,7 +208,6 @@ const SnapMenuButton = GObject.registerClass(
             const date = snap?.install_date.format('%c') ?? 'N/A';
             const channel = snap?.channel ?? 'N/A';
             const confinement = this._getSnapConfinementName(snap?.confinement) ?? 'N/A';
-            const channels = snap?.get_channels()?.map(channel => channel?.name).join('\u2003') ?? 'N/A';
             const apps = snap?.get_apps()?.map(app => app?.name).join('\u2003') ?? 'N/A';
 
             this._showTextDialog(
@@ -220,8 +221,6 @@ const SnapMenuButton = GObject.registerClass(
                     '',
                     `<b>Channel</b>\u2003${channel}`,
                     `<b>Confinement</b>\u2003${confinement}`,
-                    '',
-                    `<b>Channels</b>\u2003${channels}`,
                     '',
                     `<b>Apps</b>\u2003${apps}`,
                 ]
